@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>project01</title>
+	<script src="SpaceInvaders.js"></script>
+	<style>
+		#side_wall_rec {
+		    stroke-width:3;
+		    stroke:rgb(0,0,0);
+		    animation-name: example;
+    		animation-duration: 10s;
+    		animation-iteration-count: infinite;
+		}	
+
+		@keyframes example {
+			0% {fill: red;  }
+			15% {fill: yellow; }
+			30% {fill: gold; } 
+			45% {fill: cyan; }
+			60% {fill: blue; }
+			75% {fill: purple; }
+			90% {fill: green; }
+			100% {fill: red; }
+  			visibility: visible;
+			position: absolute;
+			top: 0;
+		}
+	</style>
+</head>
+
+<body style = "background-color:black;">
+	
+	<button id = "start_game" style="top:10px; left:760px; position:absolute;">
+		Start game
+	</button>
+
+	<div style="display:block; position:absolute; left:800px; top:200px;">
+			<img src="./assets/images/logo.jpg"
+			width="300" height="227">
+	</div>
+
+	<svg id="left_wall_svg" width="20" height="600" style="display: block; position:absolute; left:20px; top: 30px;">
+  		<rect id = "side_wall_rec" width="20" height="450"/>
+	</svg>
+
+	<svg id="right_wall_svg" width="20" height="600" style="display: block; position:absolute; left:690px; top: 30px;">
+  		<rect id = "side_wall_rec" width="20" height="450"/>
+	</svg>
+
+	<svg id="bottom_wall_svg" width="700" height="20" style="display: block; position:absolute; left:20px; top: 560px;">
+  		<rect id = "bottom_wall_rec" width="690" height="20" style="fill:rgb(79,79,79);stroke-width:3;stroke:rgb(0,0,0)"/>
+	</svg>
+
+	<canvas width="740" height="600" id="can" style="border:1px solid #000000; background: url('assets/images/background.jpg')">
+		<div style="display:block;">
+			<img id="alien01" src="./assets/images/alien_trsprnt.png"
+			width="300" height="227">
+		</div>
+		<div style="display:block;">
+			<img id="player" src="./assets/images/tank.png"
+			width="300" height="227">
+		</div>
+	</canvas>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+	<script>
+		$(document).ready(function(){
+		$("button").click(function(){
+			if(game_status == "ended") {
+				game_status = "playing";
+				var background_music = new Audio('assets/music/background_music.mp3');
+				background_music.play();
+			}
+		});
+		});
+
+
+
+
+	window.onload = function(){
+		var won_sound = new Audio('assets/music/won.wav');
+		var lost_sound = new Audio('assets/music/lost.mp3');
+		var canvas = document.getElementById('can');
+		var bulet01 = new bulet(0,0, shoot);
+		var player = new tank(350, 500);
+		var player_height = 50;
+		var player_width = 50;
+		var alien_width = 40;
+		var alien_height = 35; 
+		var bullet_width = 5;
+		var aliens_y_speed = 2000;
+		var aliens_x_speed = 250;
+		var bullet_height = 30;
+
+		var aliens_x_move_direction = "right";
+		var right_wall = 640;
+		var left_wall  = 30;
+
+		const aliens = [];
+		create_aliens(7, 3);
+		console.log(aliens);
+
+		if (canvas.getContext){
+			// battlefield initialization (loading images)
+			var c = canvas.getContext('2d');
+			var alien_cnvs = document.getElementById("alien01");
+			var player_cnvs = document.getElementById("player");
+			draw_alive_aliens();
+			draw_player();
+		}
+
+		document.onkeydown = checkKey;
+		function checkKey(e) {
+			e = e || window.event;
+			if (e.keyCode == '32') {  // space key
+				if (!bulet01.active && game_status == "playing") {
+					c.clearRect(bulet01.x,bulet01.y, bullet_width, bullet_height);  // in case when bullet has just flown through the map and immediately after it player tapped space so that there can be a situation where bullet won't be deleted from map because c.clear in bullet logic won't happen because player will be faster with activating new bullet
+					bulet01.start(player.x + player_width/2-5, player.y-48);
+				}
+			} else if (e.keyCode == '39') { //right arrow
+				move_player_right();
+			} else if (e.keyCode == '37') { //left arrow
+				move_player_left();
+			}
+		}
+
+		function bullet_hit_alien() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					if((bulet01.y >= aliens[i].y && bulet01.y <= aliens[i].y + alien_height) && (bulet01.x >= aliens[i].x && bulet01.x <= aliens[i].x + alien_width)) {
+						return {hit: true, alien_id: i};
+					}
+				}
+			}
+			return {hit: false, alien_id: -1};
+		}
+
+		setInterval(function() {
+			// bullet logic
+			if(bulet01.visible){
+				let bullet_hit_alien_res = bullet_hit_alien();
+				let alien_hit = bullet_hit_alien_res.hit;
+				let alien_hit_id = bullet_hit_alien_res.alien_id;
+
+				console.log("alien_hit: " + alien_hit);
+				console.log("alien_hit_id: " + alien_hit_id);
+
+				if(alien_hit) {
+					bulet01.kill();
+					aliens[alien_hit_id].kill();
+					clear_alien(aliens[alien_hit_id]);
+					c.clearRect(bulet01.x,bulet01.y, bullet_width, bullet_height); //added
+				} else {
+					c.clearRect(bulet01.x,bulet01.y, bullet_width, bullet_height);
+					bulet01.mouveUp();
+					c.fillStyle ="cyan";  // bullet color
+					c.fillRect(bulet01.x,bulet01.y, bullet_width, bullet_height);
+				}
+			}else{
+				c.clearRect(bulet01.x,bulet01.y, bullet_width, bullet_height);
+			}
+		}, 100);
+
+		// aliens down movement
+		setInterval(function() {
+			if(game_status == "playing") {
+				console.log("aliens_on_board: " + aliens_on_board());
+				if(aliens_on_board()) {
+					move_aliens_down();
+				}
+			} else if (game_status == "lost") {
+				game_status = "finished";
+				lost_sound.play();
+				alert("You lost! To play again refresh the page");
+			} else {}
+		}, aliens_y_speed);
+
+		// aliens left-right movement
+		setInterval(function() {
+			if(game_status == "playing") {
+				if(aliens_x_move_direction == "right") {
+					move_aliens_right();
+					if(aliens_touch_right_wall()) {
+						aliens_x_move_direction = "left";
+					}
+				} else if (aliens_x_move_direction == "left") {
+					move_aliens_left();
+					if(aliens_touch_left_wall()) {
+						aliens_x_move_direction = "right";
+					}
+				}
+			}
+		}, aliens_x_speed);
+
+
+
+		setInterval(function() {
+			if(!aliens_on_board() && game_status == "playing") {
+				game_status = "finished";
+				won_sound.play();
+				alert("You won! To play again refresh the page");
+			}	
+		}, 100);
+
+
+		////////FUNCTIONS////////
+
+
+		function clear_alien(alien_obj) {
+			c.clearRect(alien_obj.x,alien_obj.y, alien_width, alien_height);
+		}
+
+		function draw_alien(alien_obj) {
+			c.drawImage(alien_cnvs, alien_obj.x, alien_obj.y, alien_width, alien_height);
+		}
+
+		function clear_player() {
+			c.clearRect(player.x, player.y, player_width, player_height);
+		}
+
+		function draw_player() {
+			c.drawImage(player_cnvs, player.x, player.y, player_width, player_height);
+		}
+
+		function aliens_on_board() {
+			// returns true if there are alive aliens
+			let there_are = false;
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					there_are = true;
+					i = aliens.length;
+				}
+			}
+			return there_are;
+		}
+
+		function create_aliens(number, rows) {
+			// numbers means how many aliens in row
+			let x_create_const = 60;
+			let x_create = x_create_const;
+			let y_create = 100;
+			for(let j = 0; j < rows; j++) {
+				for(let i = 0; i < number; i++) {
+					aliens.push(new alien(x_create, y_create));
+					x_create = x_create + alien_width + 20;
+					console.log("x_create: " + x_create);
+				}
+				y_create += alien_height + 20;
+				x_create = x_create_const;
+			}
+		}
+
+		function draw_alive_aliens() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					draw_alien(aliens[i]);
+				}
+			}
+		}
+
+		function move_aliens_down() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					clear_alien(aliens[i]);
+					aliens[i].moveDown();
+					draw_alien(aliens[i]);
+				}
+			}
+		}
+
+
+		function move_player_right() {
+			clear_player();
+			player.moveRight();
+			draw_player();
+		}
+
+		function move_player_left() {
+			clear_player();
+			player.moveLeft();
+			draw_player();
+		}
+
+		function aliens_touch_right_wall() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					if(aliens[i].x >= right_wall) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		function aliens_touch_left_wall() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					if(aliens[i].x <= left_wall) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		function move_alien_left(alien_obj) {
+			clear_alien(alien_obj);
+			alien_obj.moveLeft();
+			draw_alien(alien_obj);
+		}
+
+		function move_alien_right(alien_obj) {
+			clear_alien(alien_obj);
+			alien_obj.moveRight();
+			draw_alien(alien_obj);
+		}
+
+		function move_aliens_right() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					move_alien_right(aliens[i]);
+				}
+			}
+		}
+
+		function move_aliens_left() {
+			for(let i = 0; i < aliens.length; i++) {
+				if(aliens[i].alive) {
+					move_alien_left(aliens[i]);
+				}
+			}
+		}
+	}
+	</script>
+</body>
+</html>
